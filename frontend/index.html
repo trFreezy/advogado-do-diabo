@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advogado do Diabo</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    
+    <style>
+        :root {
+            --bg-color: #0d1117; --chat-bg: #161b22; --text-main: #c9d1d9;
+            --bot-accent: #d73a49; --user-accent: #21262d; --sidebar-bg: #010409; --border-color: #30363d;
+        }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: var(--bg-color); color: var(--text-main); margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        header { background-color: var(--chat-bg); padding: 15px 25px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); z-index: 10; }
+        header h1 { font-size: 20px; margin: 0; color: #fff; font-weight: 600; }
+        .header-actions { display: flex; gap: 10px; }
+        .btn-novo { padding: 8px 16px; background-color: var(--bot-accent); color: white; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s; font-weight: bold; }
+        .btn-novo:hover { background-color: #b31d28; }
+        .btn-export { padding: 8px 16px; background-color: #238636; color: white; border: none; border-radius: 6px; cursor: pointer; transition: 0.2s; font-weight: bold; display: flex; align-items: center; gap: 5px; }
+        .btn-export:hover { background-color: #2ea043; }
+        .main-container { display: flex; flex: 1; overflow: hidden; }
+        .sidebar { width: 280px; background-color: var(--sidebar-bg); border-right: 1px solid var(--border-color); padding: 20px; display: flex; flex-direction: column; gap: 10px; overflow-y: auto; }
+        .sidebar h3 { font-size: 13px; margin-top: 0; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
+        .lista-debates { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px; }
+        .debate-item { display: flex; justify-content: space-between; align-items: center; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 5px; transition: 0.2s; }
+        .debate-item:hover { background-color: var(--chat-bg); }
+        .debate-item.active { background-color: var(--chat-bg); border-color: var(--border-color); border-left: 4px solid var(--bot-accent); }
+        .debate-title { flex: 1; padding: 8px; cursor: pointer; font-size: 14px; color: var(--text-main); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .btn-delete { background: transparent; border: none; color: #8b949e; cursor: pointer; padding: 8px; border-radius: 4px; transition: 0.2s; }
+        .btn-delete:hover { background-color: #21262d; color: var(--bot-accent); }
+        .dev-footer { margin-top: auto; padding-top: 15px; border-top: 1px solid var(--border-color); font-size: 11px; color: #6e7681; text-align: center; line-height: 1.5; }
+        .chat-area { flex: 1; display: flex; flex-direction: column; background-color: var(--bg-color); }
+        #chat { flex: 1; padding: 30px; overflow-y: auto; display: flex; flex-direction: column; gap: 20px; }
+        .msg { padding: 15px 20px; border-radius: 12px; max-width: 80%; line-height: 1.6; font-size: 15px; border: 1px solid var(--border-color); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .msg-meta { font-size: 11px; margin-bottom: 8px; letter-spacing: 1px; font-weight: bold; }
+        .user { align-self: flex-end; background-color: var(--user-accent); border-bottom-right-radius: 2px; }
+        .user .msg-meta { color: #8b949e; }
+        .bot { align-self: flex-start; background-color: var(--chat-bg); border-left: 4px solid var(--bot-accent); border-bottom-left-radius: 2px; width: 75%; }
+        .bot .msg-meta { color: var(--bot-accent); margin-bottom: 0; }
+        .bot h3 { font-size: 16px; color: #fff; margin-top: 15px; margin-bottom: 8px; border-bottom: 1px solid var(--border-color); padding-bottom: 4px; }
+        .bot p { margin: 8px 0; }
+        .bot ul { margin: 8px 0; padding-left: 20px; }
+        .bot li { margin-bottom: 6px; }
+        .bot strong { color: #fff; }
+        
+        /* Layout da área de input para acomodar o botão de anexo */
+        .input-area { padding: 20px 30px; background-color: var(--chat-bg); border-top: 1px solid var(--border-color); display: flex; gap: 12px; align-items: stretch; }
+        
+        .btn-attach { padding: 0 15px; background-color: var(--sidebar-bg); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 8px; font-size: 18px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
+        .btn-attach:hover { background-color: var(--user-accent); border-color: #58a6ff; }
+        
+        input[type="text"] { flex-grow: 1; padding: 15px 20px; border: 1px solid var(--border-color); border-radius: 8px; font-size: 16px; outline: none; background-color: var(--bg-color); color: #fff; transition: 0.3s; }
+        input[type="text"]:focus { border-color: #58a6ff; }
+        .btn-send { padding: 0 30px; background-color: var(--text-main); color: var(--bg-color); border: none; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.2s; }
+        .btn-send:hover { background-color: #fff; }
+        .loading { align-self: flex-start; margin-left: 20px; display: none; color: #8b949e; font-size: 14px; font-style: italic; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>⚖️ Advogado do Diabo</h1>
+        <div class="header-actions">
+            <button class="btn-export" id="btnExportar" onclick="exportarPDF()">📄 Exportar PDF</button>
+            <button class="btn-novo" onclick="criarNovoDebate()">+ Novo Debate</button>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <aside class="sidebar">
+            <h3>Meus Debates</h3>
+            <div id="listaDebates" class="lista-debates"></div>
+            <div class="dev-footer">
+                &copy; Colossus 2026, FreezyWasHere.<br>
+                Powered by FastAPI, SQLite & Google AI.
+            </div>
+        </aside>
+
+        <main class="chat-area">
+            <div id="chat"></div>
+            <div id="loadingIndicator" class="loading">A carregar dados...</div>
+            <div class="input-area">
+                <input type="file" id="inputFile" accept="application/pdf" style="display: none;" onchange="anexarArquivo(event)">
+                
+                <button class="btn-attach" onclick="document.getElementById('inputFile').click()" title="Anexar documento PDF">📎</button>
+                
+                <input type="text" id="inputTexto" placeholder="Escreva o seu argumento ou anexe um PDF base..." onkeypress="handleKeyPress(event)">
+                <button id="btnEnviar" class="btn-send" onclick="enviarMensagem()">Debater</button>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const API_URL = 'http://127.0.0.1:8000';
+        const input = document.getElementById('inputTexto');
+        const chat = document.getElementById('chat');
+        const listaDebatesUI = document.getElementById('listaDebates');
+        const loading = document.getElementById('loadingIndicator');
+
+        let debatesSalvos = [];
+        let debateAtualId = null;
+
+        const htmlBoasVindas = `<div class="msg bot"><div class="msg-meta">ADVOGADO DO DIABO</div><p>Apresente a sua premissa textual ou anexe um PDF (📎) contendo o seu projeto, artigo ou plano de negócios para uma auditoria profunda.</p></div>`;
+
+        window.onload = async () => { await carregarDebatesDoBanco(); };
+
+        function gerarId() { return 'debate_' + Date.now().toString(); }
+
+        async function exportarPDF() {
+            const btnExport = document.getElementById('btnExportar');
+            const debate = debatesSalvos.find(d => d.id === debateAtualId);
+            let nomeArquivo = "Relatorio_Advogado";
+            if (debate && debate.titulo !== "Novo Debate") nomeArquivo = debate.titulo.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+
+            const textoOriginal = btnExport.innerText;
+            btnExport.innerText = "⏳ A gerar...";
+            btnExport.disabled = true;
+            chat.style.overflowY = 'visible';
+            chat.style.height = 'auto';
+
+            const opt = {
+                margin:       10,
+                filename:     `${nomeArquivo}.pdf`,
+                image:        { type: 'jpeg', quality: 0.98 },
+                html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#0d1117' },
+                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
+            };
+
+            try { await html2pdf().set(opt).from(chat).save(); } 
+            catch (error) { alert("Erro ao gerar o PDF."); } 
+            finally {
+                chat.style.overflowY = 'auto';
+                chat.style.height = '';
+                btnExport.innerText = textoOriginal;
+                btnExport.disabled = false;
+            }
+        }
+
+        // --- NOVA FUNÇÃO: UPLOAD DO PDF ---
+        async function anexarArquivo(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            if (file.type !== "application/pdf") {
+                alert("O Advogado do Diabo aceita apenas arquivos PDF no momento.");
+                return;
+            }
+
+            // Feedback visual na tela
+            chat.innerHTML += `<div class="msg user"><div class="msg-meta">SISTEMA</div>📎 A ler documento: <strong>${file.name}</strong>...</div>`;
+            loading.style.display = 'block';
+            loading.innerText = "A extrair texto e memorizar contexto...";
+            chat.scrollTop = chat.scrollHeight;
+
+            // Prepara o arquivo para envio via FormData
+            const formData = new FormData();
+            formData.append("arquivo", file);
+
+            try {
+                const response = await fetch(`${API_URL}/upload/${debateAtualId}`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.status === "sucesso") {
+                    chat.innerHTML += `<div class="msg bot"><div class="msg-meta">ADVOGADO DO DIABO</div><p>📄 Documento lido e memorizado com sucesso. Eu tenho todo o contexto agora. Qual é a sua tese sobre ele?</p></div>`;
+                    
+                    // Se for um debate novo, atualiza o título na barra lateral com o nome do arquivo!
+                    let debate = debatesSalvos.find(d => d.id === debateAtualId);
+                    if (debate && debate.titulo === "Novo Debate") {
+                        debate.titulo = "📎 " + file.name.substring(0, 20);
+                        renderizarSidebar();
+                    }
+                } else {
+                    chat.innerHTML += `<div class="msg bot"><div class="msg-meta">ERRO</div><p>Falha ao processar: ${data.mensagem}</p></div>`;
+                }
+            } catch (error) {
+                chat.innerHTML += `<div class="msg bot"><div class="msg-meta">ERRO</div><p>Falha na conexão com o servidor ao enviar o anexo.</p></div>`;
+            } finally {
+                loading.style.display = 'none';
+                chat.scrollTop = chat.scrollHeight;
+                event.target.value = ''; // Limpa o input para permitir enviar o mesmo arquivo novamente se necessário
+            }
+        }
+        // ---------------------------------
+
+        async function carregarDebatesDoBanco() {
+            try {
+                const response = await fetch(`${API_URL}/debates`);
+                debatesSalvos = await response.json();
+                renderizarSidebar();
+                if (debatesSalvos.length > 0) selecionarDebate(debatesSalvos[0].id);
+                else criarNovoDebate();
+            } catch (error) { criarNovoDebate(); }
+        }
+
+        function renderizarSidebar() {
+            listaDebatesUI.innerHTML = '';
+            debatesSalvos.forEach(debate => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = `debate-item ${debate.id === debateAtualId ? 'active' : ''}`;
+                const btnText = document.createElement('div');
+                btnText.className = 'debate-title';
+                btnText.innerText = debate.titulo;
+                btnText.onclick = () => selecionarDebate(debate.id);
+                const btnDel = document.createElement('button');
+                btnDel.className = 'btn-delete';
+                btnDel.innerHTML = '🗑️';
+                btnDel.onclick = (e) => deletarDebate(debate.id, e);
+                itemDiv.appendChild(btnText);
+                itemDiv.appendChild(btnDel);
+                listaDebatesUI.appendChild(itemDiv);
+            });
+        }
+
+        function criarNovoDebate() {
+            const novoId = gerarId();
+            debateAtualId = novoId;
+            debatesSalvos.unshift({ id: novoId, titulo: "Novo Debate" });
+            renderizarSidebar();
+            chat.innerHTML = htmlBoasVindas;
+            input.focus();
+        }
+
+        async function selecionarDebate(id) {
+            debateAtualId = id;
+            renderizarSidebar();
+            chat.innerHTML = ''; 
+            loading.style.display = 'block';
+            loading.innerText = "A carregar histórico...";
+
+            try {
+                const response = await fetch(`${API_URL}/chat/${id}`);
+                const mensagens = await response.json();
+                
+                if (mensagens.length === 0) chat.innerHTML = htmlBoasVindas;
+                else {
+                    mensagens.forEach(msg => {
+                        // Não renderizamos os textos gigantes de contexto que enfiamos no banco!
+                        if (msg.role === 'user' && msg.texto.startsWith("[DOCUMENTO DE CONTEXTO ANEXADO")) {
+                            chat.innerHTML += `<div class="msg user"><div class="msg-meta">SISTEMA</div>📎 Documento em memória.</div>`;
+                        } else if (msg.role === 'user') {
+                            chat.innerHTML += `<div class="msg user"><div class="msg-meta">VOCÊ</div><p>${msg.texto}</p></div>`;
+                        } else {
+                            let htmlFormatado = marked.parse(msg.texto);
+                            chat.innerHTML += `<div class="msg bot"><div class="msg-meta">ADVOGADO DO DIABO</div>${htmlFormatado}</div>`;
+                        }
+                    });
+                }
+            } catch (error) { chat.innerHTML = `<div class="msg bot">Erro.</div>`; } 
+            finally {
+                loading.style.display = 'none';
+                chat.scrollTop = chat.scrollHeight;
+                input.focus();
+            }
+        }
+
+        async function deletarDebate(id, event) {
+            event.stopPropagation(); 
+            if (!confirm("Excluir permanentemente este debate?")) return;
+            try { 
+                await fetch(`${API_URL}/chat/${id}`, { method: 'DELETE' }); 
+                debatesSalvos = debatesSalvos.filter(d => d.id !== id);
+                if (debatesSalvos.length === 0) criarNovoDebate();
+                else if (id === debateAtualId) selecionarDebate(debatesSalvos[0].id);
+                else renderizarSidebar();
+            } catch (e) { alert("Erro ao excluir."); }
+        }
+
+        function handleKeyPress(event) { if (event.key === 'Enter') enviarMensagem(); }
+
+        async function enviarMensagem() {
+            const texto = input.value;
+            if (!texto.trim()) return;
+
+            let debate = debatesSalvos.find(d => d.id === debateAtualId);
+            if (debate && debate.titulo === "Novo Debate") {
+                debate.titulo = texto.substring(0, 25) + "...";
+                renderizarSidebar();
+            }
+
+            chat.innerHTML += `<div class="msg user"><div class="msg-meta">VOCÊ</div><p>${texto}</p></div>`;
+            input.value = '';
+            
+            loading.style.display = 'block';
+            loading.innerText = "A redigir relatório...";
+            document.getElementById('btnEnviar').disabled = true;
+            chat.scrollTop = chat.scrollHeight;
+
+            try {
+                const response = await fetch(`${API_URL}/chat`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ texto: texto, debate_id: debateAtualId })
+                });
+
+                const data = await response.json();
+                let htmlFormatado = marked.parse(data.resposta);
+                chat.innerHTML += `<div class="msg bot"><div class="msg-meta">ADVOGADO DO DIABO</div>${htmlFormatado}</div>`;
+
+            } catch (error) { chat.innerHTML += `<div class="msg bot">Erro na ligação.</div>`; } 
+            finally {
+                loading.style.display = 'none';
+                document.getElementById('btnEnviar').disabled = false;
+                chat.scrollTop = chat.scrollHeight;
+            }
+        }
+    </script>
+</body>
+</html>
