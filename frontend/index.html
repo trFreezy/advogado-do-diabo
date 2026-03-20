@@ -56,6 +56,41 @@
         .btn-send { padding: 0 30px; background-color: var(--text-main); color: var(--bg-color); border: none; border-radius: 8px; font-weight: bold; font-size: 15px; cursor: pointer; transition: 0.2s; }
         .btn-send:hover { background-color: #fff; }
         .loading { align-self: flex-start; margin-left: 20px; display: none; color: #8b949e; font-size: 14px; font-style: italic; }
+
+        
+        /* 📱 RESPONSIVIDADE PARA TELEMÓVEIS (MEDIA QUERIES) 📱 */
+        @media (max-width: 768px) {
+            /* 1. O cabeçalho empilha os botões */
+            header { flex-direction: column; gap: 15px; text-align: center; padding: 15px; }
+            .header-actions { width: 100%; justify-content: center; flex-wrap: wrap; }
+            
+            /* 2. O layout principal deixa de ser lado-a-lado e passa a ser topo-base */
+            .main-container { flex-direction: column; }
+            
+            /* 3. A barra lateral vira um "Carrossel" no topo do chat */
+            .sidebar { 
+                width: 100%; height: auto; max-height: 140px; 
+                border-right: none; border-bottom: 1px solid var(--border-color); 
+                padding: 15px 10px; box-sizing: border-box;
+            }
+            .sidebar h3 { display: none; } /* Esconde o título para poupar espaço */
+            .dev-footer { display: none; } /* Esconde o rodapé no telemóvel */
+            
+            /* Transforma a lista vertical num scroll horizontal super fluido */
+            .lista-debates { flex-direction: row; overflow-x: auto; overflow-y: hidden; gap: 10px; padding-bottom: 5px; }
+            .debate-item { flex: 0 0 auto; width: 220px; } /* Impede que os botões encolham */
+            
+            /* 4. O Chat ganha espaço e as fontes ajustam-se */
+            #chat { padding: 15px; }
+            .msg { max-width: 90%; font-size: 14px; padding: 12px 15px; }
+            .bot { width: 95%; }
+            
+            /* 5. A área de input reorganiza-se para não esmagar os botões */
+            .input-area { padding: 15px; flex-wrap: wrap; gap: 10px; }
+            input[type="text"] { width: 100%; order: -1; margin-bottom: 5px; box-sizing: border-box; } /* Caixa de texto inteira na linha de cima */
+            .btn-attach { flex: 1; padding: 10px 0; }
+            .btn-send { flex: 3; padding: 10px 0; }
+        }
     </style>
 </head>
 <body>
@@ -93,7 +128,17 @@
     </div>
 
     <script>
-        const API_URL = 'https://advogado-do-diabo.onrender.com';
+      // --- GERAÇÃO DO PASSAPORTE DO UTILIZADOR (PRIVACIDADE) ---
+        let meuUserId = localStorage.getItem('advogado_user_id');
+        if (!meuUserId) {
+            // Se for a primeira vez, cria um ID aleatório tipo 'usr_a1b2c3d4e'
+            meuUserId = 'usr_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('advogado_user_id', meuUserId);
+        }
+
+        // Lembre-se de manter o link da Vercel/Render aqui:
+        const API_URL = 'https://api-advogado-do-diabo.onrender.com'; 
+        
         const input = document.getElementById('inputTexto');
         const chat = document.getElementById('chat');
         const listaDebatesUI = document.getElementById('listaDebates');
@@ -102,12 +147,13 @@
         let debatesSalvos = [];
         let debateAtualId = null;
 
-        const htmlBoasVindas = `<div class="msg bot"><div class="msg-meta">ADVOGADO DO DIABO</div><p>Apresente a sua premissa textual ou anexe um PDF (📎) contendo o seu projeto, artigo ou plano de negócios para uma auditoria profunda.</p></div>`;
+        const htmlBoasVindas = `<div class="msg bot"><div class="msg-meta">ADVOGADO DO DIABO</div><p>Apresente a sua premissa ou anexe um PDF (📎). A sua sessão é privada.</p></div>`;
 
         window.onload = async () => { await carregarDebatesDoBanco(); };
 
         function gerarId() { return 'debate_' + Date.now().toString(); }
 
+        // EXPORTAR PDF (Mantém-se igual)
         async function exportarPDF() {
             const btnExport = document.getElementById('btnExportar');
             const debate = debatesSalvos.find(d => d.id === debateAtualId);
@@ -117,80 +163,43 @@
             const textoOriginal = btnExport.innerText;
             btnExport.innerText = "⏳ A gerar...";
             btnExport.disabled = true;
-            chat.style.overflowY = 'visible';
-            chat.style.height = 'auto';
+            chat.style.overflowY = 'visible'; chat.style.height = 'auto';
 
-            const opt = {
-                margin:       10,
-                filename:     `${nomeArquivo}.pdf`,
-                image:        { type: 'jpeg', quality: 0.98 },
-                html2canvas:  { scale: 2, useCORS: true, backgroundColor: '#0d1117' },
-                jsPDF:        { unit: 'mm', format: 'a4', orientation: 'portrait' }
-            };
-
-            try { await html2pdf().set(opt).from(chat).save(); } 
-            catch (error) { alert("Erro ao gerar o PDF."); } 
-            finally {
-                chat.style.overflowY = 'auto';
-                chat.style.height = '';
-                btnExport.innerText = textoOriginal;
-                btnExport.disabled = false;
-            }
+            const opt = { margin: 10, filename: `${nomeArquivo}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2, useCORS: true, backgroundColor: '#0d1117' }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+            try { await html2pdf().set(opt).from(chat).save(); } catch (error) { alert("Erro ao gerar PDF."); } 
+            finally { chat.style.overflowY = 'auto'; chat.style.height = ''; btnExport.innerText = textoOriginal; btnExport.disabled = false; }
         }
 
-        // --- NOVA FUNÇÃO: UPLOAD DO PDF ---
+        // UPLOAD PDF (Agora envia o user_id no link)
         async function anexarArquivo(event) {
             const file = event.target.files[0];
-            if (!file) return;
+            if (!file || file.type !== "application/pdf") return;
 
-            if (file.type !== "application/pdf") {
-                alert("O Advogado do Diabo aceita apenas arquivos PDF no momento.");
-                return;
-            }
-
-            // Feedback visual na tela
-            chat.innerHTML += `<div class="msg user"><div class="msg-meta">SISTEMA</div>📎 A ler documento: <strong>${file.name}</strong>...</div>`;
-            loading.style.display = 'block';
-            loading.innerText = "A extrair texto e memorizar contexto...";
+            chat.innerHTML += `<div class="msg user"><div class="msg-meta">SISTEMA</div>📎 A ler: <strong>${file.name}</strong>...</div>`;
+            loading.style.display = 'block'; loading.innerText = "A memorizar contexto...";
             chat.scrollTop = chat.scrollHeight;
 
-            // Prepara o arquivo para envio via FormData
-            const formData = new FormData();
-            formData.append("arquivo", file);
+            const formData = new FormData(); formData.append("arquivo", file);
 
             try {
-                const response = await fetch(`${API_URL}/upload/${debateAtualId}`, {
-                    method: 'POST',
-                    body: formData
-                });
-
+                // Adicionamos o ?user_id= aqui!
+                const response = await fetch(`${API_URL}/upload/${debateAtualId}?user_id=${meuUserId}`, { method: 'POST', body: formData });
                 const data = await response.json();
 
                 if (data.status === "sucesso") {
-                    chat.innerHTML += `<div class="msg bot"><div class="msg-meta">ADVOGADO DO DIABO</div><p>📄 Documento lido e memorizado com sucesso. Eu tenho todo o contexto agora. Qual é a sua tese sobre ele?</p></div>`;
-                    
-                    // Se for um debate novo, atualiza o título na barra lateral com o nome do arquivo!
+                    chat.innerHTML += `<div class="msg bot"><div class="msg-meta">ADVOGADO DO DIABO</div><p>📄 Documento em memória. Qual a sua tese?</p></div>`;
                     let debate = debatesSalvos.find(d => d.id === debateAtualId);
-                    if (debate && debate.titulo === "Novo Debate") {
-                        debate.titulo = "📎 " + file.name.substring(0, 20);
-                        renderizarSidebar();
-                    }
-                } else {
-                    chat.innerHTML += `<div class="msg bot"><div class="msg-meta">ERRO</div><p>Falha ao processar: ${data.mensagem}</p></div>`;
-                }
-            } catch (error) {
-                chat.innerHTML += `<div class="msg bot"><div class="msg-meta">ERRO</div><p>Falha na conexão com o servidor ao enviar o anexo.</p></div>`;
-            } finally {
-                loading.style.display = 'none';
-                chat.scrollTop = chat.scrollHeight;
-                event.target.value = ''; // Limpa o input para permitir enviar o mesmo arquivo novamente se necessário
-            }
+                    if (debate && debate.titulo === "Novo Debate") { debate.titulo = "📎 " + file.name.substring(0, 20); renderizarSidebar(); }
+                } else chat.innerHTML += `<div class="msg bot"><div class="msg-meta">ERRO</div><p>${data.mensagem}</p></div>`;
+            } catch (error) { chat.innerHTML += `<div class="msg bot">Erro de ligação.</div>`; } 
+            finally { loading.style.display = 'none'; chat.scrollTop = chat.scrollHeight; event.target.value = ''; }
         }
-        // ---------------------------------
 
+        // CARREGAR DEBATES (Agora envia o user_id no link)
         async function carregarDebatesDoBanco() {
             try {
-                const response = await fetch(`${API_URL}/debates`);
+                // Adicionamos o ?user_id= aqui!
+                const response = await fetch(`${API_URL}/debates?user_id=${meuUserId}`);
                 debatesSalvos = await response.json();
                 renderizarSidebar();
                 if (debatesSalvos.length > 0) selecionarDebate(debatesSalvos[0].id);
@@ -203,111 +212,74 @@
             debatesSalvos.forEach(debate => {
                 const itemDiv = document.createElement('div');
                 itemDiv.className = `debate-item ${debate.id === debateAtualId ? 'active' : ''}`;
-                const btnText = document.createElement('div');
-                btnText.className = 'debate-title';
-                btnText.innerText = debate.titulo;
-                btnText.onclick = () => selecionarDebate(debate.id);
-                const btnDel = document.createElement('button');
-                btnDel.className = 'btn-delete';
-                btnDel.innerHTML = '🗑️';
-                btnDel.onclick = (e) => deletarDebate(debate.id, e);
-                itemDiv.appendChild(btnText);
-                itemDiv.appendChild(btnDel);
-                listaDebatesUI.appendChild(itemDiv);
+                const btnText = document.createElement('div'); btnText.className = 'debate-title'; btnText.innerText = debate.titulo; btnText.onclick = () => selecionarDebate(debate.id);
+                const btnDel = document.createElement('button'); btnDel.className = 'btn-delete'; btnDel.innerHTML = '🗑️'; btnDel.onclick = (e) => deletarDebate(debate.id, e);
+                itemDiv.appendChild(btnText); itemDiv.appendChild(btnDel); listaDebatesUI.appendChild(itemDiv);
             });
         }
 
         function criarNovoDebate() {
-            const novoId = gerarId();
-            debateAtualId = novoId;
+            const novoId = gerarId(); debateAtualId = novoId;
             debatesSalvos.unshift({ id: novoId, titulo: "Novo Debate" });
-            renderizarSidebar();
-            chat.innerHTML = htmlBoasVindas;
-            input.focus();
+            renderizarSidebar(); chat.innerHTML = htmlBoasVindas; input.focus();
         }
 
         async function selecionarDebate(id) {
-            debateAtualId = id;
-            renderizarSidebar();
-            chat.innerHTML = ''; 
-            loading.style.display = 'block';
-            loading.innerText = "A carregar histórico...";
-
+            debateAtualId = id; renderizarSidebar(); chat.innerHTML = ''; 
+            loading.style.display = 'block'; loading.innerText = "A carregar...";
             try {
                 const response = await fetch(`${API_URL}/chat/${id}`);
                 const mensagens = await response.json();
-                
                 if (mensagens.length === 0) chat.innerHTML = htmlBoasVindas;
                 else {
                     mensagens.forEach(msg => {
-                        // Não renderizamos os textos gigantes de contexto que enfiamos no banco!
-                        if (msg.role === 'user' && msg.texto.startsWith("[DOCUMENTO DE CONTEXTO ANEXADO")) {
-                            chat.innerHTML += `<div class="msg user"><div class="msg-meta">SISTEMA</div>📎 Documento em memória.</div>`;
-                        } else if (msg.role === 'user') {
-                            chat.innerHTML += `<div class="msg user"><div class="msg-meta">VOCÊ</div><p>${msg.texto}</p></div>`;
-                        } else {
-                            let htmlFormatado = marked.parse(msg.texto);
-                            chat.innerHTML += `<div class="msg bot"><div class="msg-meta">ADVOGADO DO DIABO</div>${htmlFormatado}</div>`;
-                        }
+                        if (msg.role === 'user' && msg.texto.startsWith("[DOCUMENTO DE CONTEXTO")) chat.innerHTML += `<div class="msg user"><div class="msg-meta">SISTEMA</div>📎 Documento em memória.</div>`;
+                        else if (msg.role === 'user') chat.innerHTML += `<div class="msg user"><div class="msg-meta">VOCÊ</div><p>${msg.texto}</p></div>`;
+                        else { let htmlFormatado = marked.parse(msg.texto); chat.innerHTML += `<div class="msg bot"><div class="msg-meta">ADVOGADO DO DIABO</div>${htmlFormatado}</div>`; }
                     });
                 }
             } catch (error) { chat.innerHTML = `<div class="msg bot">Erro.</div>`; } 
-            finally {
-                loading.style.display = 'none';
-                chat.scrollTop = chat.scrollHeight;
-                input.focus();
-            }
+            finally { loading.style.display = 'none'; chat.scrollTop = chat.scrollHeight; input.focus(); }
         }
 
+        // DELETAR (Agora envia o user_id no link)
         async function deletarDebate(id, event) {
             event.stopPropagation(); 
-            if (!confirm("Excluir permanentemente este debate?")) return;
+            if (!confirm("Excluir este debate?")) return;
             try { 
-                await fetch(`${API_URL}/chat/${id}`, { method: 'DELETE' }); 
+                await fetch(`${API_URL}/chat/${id}?user_id=${meuUserId}`, { method: 'DELETE' }); 
                 debatesSalvos = debatesSalvos.filter(d => d.id !== id);
                 if (debatesSalvos.length === 0) criarNovoDebate();
                 else if (id === debateAtualId) selecionarDebate(debatesSalvos[0].id);
                 else renderizarSidebar();
-            } catch (e) { alert("Erro ao excluir."); }
+            } catch (e) { alert("Erro."); }
         }
 
         function handleKeyPress(event) { if (event.key === 'Enter') enviarMensagem(); }
 
+        // ENVIAR MENSAGEM (Agora envia o user_id no JSON)
         async function enviarMensagem() {
-            const texto = input.value;
-            if (!texto.trim()) return;
+            const texto = input.value; if (!texto.trim()) return;
 
             let debate = debatesSalvos.find(d => d.id === debateAtualId);
-            if (debate && debate.titulo === "Novo Debate") {
-                debate.titulo = texto.substring(0, 25) + "...";
-                renderizarSidebar();
-            }
+            if (debate && debate.titulo === "Novo Debate") { debate.titulo = texto.substring(0, 25) + "..."; renderizarSidebar(); }
 
             chat.innerHTML += `<div class="msg user"><div class="msg-meta">VOCÊ</div><p>${texto}</p></div>`;
-            input.value = '';
-            
-            loading.style.display = 'block';
-            loading.innerText = "A redigir relatório...";
-            document.getElementById('btnEnviar').disabled = true;
-            chat.scrollTop = chat.scrollHeight;
+            input.value = ''; loading.style.display = 'block'; loading.innerText = "A redigir relatório...";
+            document.getElementById('btnEnviar').disabled = true; chat.scrollTop = chat.scrollHeight;
 
             try {
                 const response = await fetch(`${API_URL}/chat`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ texto: texto, debate_id: debateAtualId })
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    // Injetamos o user_id no corpo da mensagem!
+                    body: JSON.stringify({ texto: texto, debate_id: debateAtualId, user_id: meuUserId })
                 });
 
                 const data = await response.json();
                 let htmlFormatado = marked.parse(data.resposta);
                 chat.innerHTML += `<div class="msg bot"><div class="msg-meta">ADVOGADO DO DIABO</div>${htmlFormatado}</div>`;
-
             } catch (error) { chat.innerHTML += `<div class="msg bot">Erro na ligação.</div>`; } 
-            finally {
-                loading.style.display = 'none';
-                document.getElementById('btnEnviar').disabled = false;
-                chat.scrollTop = chat.scrollHeight;
-            }
+            finally { loading.style.display = 'none'; document.getElementById('btnEnviar').disabled = false; chat.scrollTop = chat.scrollHeight; }
         }
     </script>
 </body>
